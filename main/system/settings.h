@@ -9,13 +9,14 @@
 #include "esp_err.h"
 
 typedef struct {
-    char wifi_ssid[32];
-    char wifi_password[64];
+    char mqtt_client_id[32];
     char mqtt_url[64];
     char mqtt_username[32];
     char mqtt_password[64];
-    uint32_t i2c_clock;
+    int i2c_clock;
     uint8_t i2c_address;
+    uint32_t last_update_time;
+    uint32_t ring_adc_threshold;
 } sys_param_t;
 
 esp_err_t settings_read_parameter_from_nvs(void);

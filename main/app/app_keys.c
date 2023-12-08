@@ -2,23 +2,24 @@
 // Created by Hessian on 2023/7/31.
 //
 
-#include <gpio.h>
+#include <driver/gpio.h>
 #include <esp_log.h>
 #include <esp_system.h>
 #include <string.h>
+#include <esp_wifi.h>
 #include "app_keys.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "settings.h"
 #include "app_menjin.h"
+#include "iot_button.h"
 
 static const char *TAG = "APP_KEYS";
 
-static xQueueHandle gpio_evt_queue = NULL;
+static QueueHandle_t gpio_evt_queue = NULL;
 
 #define BUTTON_TRIGGER_INTERVAL_MS 1000 // 防抖延迟时间，根据实际情况调整
-
 
 // 定义按键信息的结构体
 typedef struct {
@@ -26,54 +27,62 @@ typedef struct {
     TickType_t lastTriggerTime;
 } ButtonInfo;
 
-static ButtonInfo button_12;
-static ButtonInfo button_13;
-static ButtonInfo button_14;
+#define K0_PIN GPIO_NUM_0
+#define K1_PIN GPIO_NUM_6
+#define K2_PIN GPIO_NUM_7
+#define K3_PIN GPIO_NUM_4
+#define K4_PIN GPIO_NUM_5
+#define KEY_COUNT 5
 
-// 按键有效为true，否则为false
-bool button_trigger_limit(ButtonInfo* button) {
-    if (button->lastTriggerTime == 0 || xTaskGetTickCount() - button->lastTriggerTime >= pdMS_TO_TICKS(BUTTON_TRIGGER_INTERVAL_MS)) {
-        button->lastTriggerTime = xTaskGetTickCount();
-        return true;
-    }
+static int keys[] = {
+        K0_PIN,
+        K1_PIN,
+        K2_PIN,
+        K3_PIN,
+        K4_PIN,
+};
+button_handle_t gpio_btn[KEY_COUNT];
 
-    return false;
-}
-
-static void gpio_isr_handler(void *arg)
+static void button_click_cb(void *arg, void *usr_data)
 {
-    ButtonInfo *buttonInfo = (ButtonInfo*) arg;
-    if (button_trigger_limit(buttonInfo)) {
-        xQueueSendFromISR(gpio_evt_queue, &buttonInfo, NULL);
-    }
+    xQueueSendFromISR(gpio_evt_queue, usr_data, NULL);
 }
 
 static void key_event_handle_task(void *arg)
 {
-    ButtonInfo *buttonInfo;
+    int keyPin;
 
     sys_param_t *settings;
 
+    esp_err_t ret;
+
     for (;;) {
-        if (xQueueReceive(gpio_evt_queue, &buttonInfo, portMAX_DELAY)) {
-
-            ESP_LOGI(TAG, "GPIO[%d] intr, val: %d", buttonInfo->pin, gpio_get_level(buttonInfo->pin));
-
-            switch (buttonInfo->pin) {
-                case GPIO_NUM_12:
+        if (xQueueReceive(gpio_evt_queue, &keyPin, portMAX_DELAY)) {
+            switch (keyPin) {
+                case K0_PIN:
+                    ESP_LOGI(TAG, "PRESS KEY0 - KEY(boot)");
                     ESP_LOGW(TAG, "Reset to default settings");
                     settings = settings_get_parameter();
                     sys_param_t default_settings = settings_get_default_parameter();
                     memcpy(settings, &default_settings, sizeof(sys_param_t));
                     settings_write_parameter_to_nvs();
+//                    esp_wifi_set_storage(WIFI_STORAGE_FLASH);
+//                    wifi_config_t wifi_cfg = {0};
+//                    esp_wifi_set_config(WIFI_IF_STA, &wifi_cfg);
+                    ret = esp_wifi_restore();
+                    ESP_LOGI(TAG, "Wi-Fi restore: %d", ret);
+
                     ESP_LOGW(TAG, "Restarting the device");
                     esp_restart();
                     break;
-                case GPIO_NUM_13:
+                case K2_PIN:
+                    ESP_LOGI(TAG, "PRESS KEY2 - KEY(XX)");
+                    break;
+                case K3_PIN:
                     ESP_LOGI(TAG, "PRESS KEY3 - KEY(Unlock)");
                     menjin_cmd_write(MENJIN_CMD_KEY3_UNLOCK);
                     break;
-                case GPIO_NUM_14:
+                case K4_PIN:
                     ESP_LOGI(TAG, "PRESS KEY4 - SPEAKER(Hand Free)");
                     menjin_cmd_write(MENJIN_CMD_KEY4_SPEAKER);
                     break;
@@ -91,32 +100,27 @@ void app_init_key_handles(void)
     //create a queue to handle gpio event from isr
     gpio_evt_queue = xQueueCreate(10, sizeof(uint32_t));
 
-    gpio_config_t io_conf;
+    button_config_t gpio_btn_cfg = {
+            .type = BUTTON_TYPE_GPIO,
+            .long_press_time = CONFIG_BUTTON_LONG_PRESS_TIME_MS,
+            .short_press_time = CONFIG_BUTTON_SHORT_PRESS_TIME_MS,
+            .gpio_button_config = {
+                    .gpio_num = K0_PIN,
+                    .active_level = 0,
+            },
+    };
 
-    io_conf.intr_type = GPIO_INTR_NEGEDGE;
-    //set as output mode
-    io_conf.mode = GPIO_MODE_INPUT;
-    //bit mask of the pins that you want to set,e.g.GPIO12/13/14
-    io_conf.pin_bit_mask = ((1ULL<<GPIO_NUM_12) | (1ULL<<GPIO_NUM_13) | (1ULL<<GPIO_NUM_14));
-    //disable pull-down mode
-    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
-    //disable pull-up mode
-    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
-    //configure GPIO with the given settings
+    for (int i = 0; i < KEY_COUNT; ++i) {
+        gpio_btn_cfg.gpio_button_config.gpio_num = keys[i];
+        gpio_btn[i] = iot_button_create(&gpio_btn_cfg);
 
-    ESP_ERROR_CHECK(gpio_config(&io_conf));
+        if (i == 0) {
+            iot_button_register_cb(gpio_btn[i], BUTTON_LONG_PRESS_UP, button_click_cb, &keys[i]);
+        } else {
+            iot_button_register_cb(gpio_btn[i], BUTTON_SINGLE_CLICK, button_click_cb, &keys[i]);
+        }
+    }
 
     //start gpio task
     xTaskCreate(key_event_handle_task, "key_event_handle_task", 2048, NULL, 10, NULL);
-
-    button_12.pin = GPIO_NUM_12;
-    button_13.pin = GPIO_NUM_13;
-    button_14.pin = GPIO_NUM_14;
-
-    //install gpio isr service
-    gpio_install_isr_service(0);
-    //hook isr handler for specific gpio pin
-    gpio_isr_handler_add(GPIO_NUM_12, gpio_isr_handler, &button_12);
-    gpio_isr_handler_add(GPIO_NUM_13, gpio_isr_handler, &button_13);
-    gpio_isr_handler_add(GPIO_NUM_14, gpio_isr_handler, &button_14);
 }

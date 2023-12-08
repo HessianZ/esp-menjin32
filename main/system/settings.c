@@ -3,6 +3,7 @@
 //
 
 #include <string.h>
+#include <time.h>
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -16,14 +17,15 @@ static const char *TAG = "settings";
 static sys_param_t g_sys_param = {0};
 
 const sys_param_t g_default_sys_param = {
-        .wifi_ssid = {0},
-        .wifi_password = {0},
-        .mqtt_url = {0},
-        .mqtt_username = {0},
-        .mqtt_password = {0},
+        .mqtt_client_id = {0},
+        .mqtt_url = "mqtts://w7afeb1b.ala.cn-hangzhou.emqxsl.cn:8883",
+        .mqtt_username = "menjin",
+        .mqtt_password = "v8zqF8bDFiwlvncfJTWjE9iWgik9B9",
         // 50Khz for default
         .i2c_clock = 50000,
         .i2c_address = 0x50,
+        .last_update_time = 0,
+        .ring_adc_threshold = 1200,
 };
 
 esp_err_t settings_read_parameter_from_nvs(void)
@@ -67,6 +69,7 @@ esp_err_t settings_write_parameter_to_nvs(void)
     if (err != ESP_OK) {
         ESP_LOGI(TAG, "Error (%s) opening NVS handle!\n", esp_err_to_name(err));
     } else {
+        g_sys_param.last_update_time = time(NULL);
         err = nvs_set_blob(my_handle, KEY, &g_sys_param, sizeof(sys_param_t));
         err |= nvs_commit(my_handle);
         nvs_close(my_handle);
@@ -87,11 +90,11 @@ sys_param_t settings_get_default_parameter(void)
 void settings_dump(void)
 {
     ESP_LOGI(TAG, "settings_dump >>>");
-    ESP_LOGI(TAG, "\twifi_ssid: %s", g_sys_param.wifi_ssid);
-    ESP_LOGI(TAG, "\twifi_password: %s", g_sys_param.wifi_password);
+    ESP_LOGI(TAG, "\tmqtt_client_id: %s", g_sys_param.mqtt_client_id);
     ESP_LOGI(TAG, "\tmqtt_url: %s", g_sys_param.mqtt_url);
     ESP_LOGI(TAG, "\tmqtt_username: %s", g_sys_param.mqtt_username);
     ESP_LOGI(TAG, "\tmqtt_password: %s", g_sys_param.mqtt_password);
     ESP_LOGI(TAG, "\ti2c_clock: %d", g_sys_param.i2c_clock);
     ESP_LOGI(TAG, "\ti2c_address: %d", g_sys_param.i2c_address);
+    ESP_LOGI(TAG, "\tring_adc_threshold: %lu", g_sys_param.ring_adc_threshold);
 }

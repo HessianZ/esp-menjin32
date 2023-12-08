@@ -1,29 +1,94 @@
 menu "ESP_MENJIN Config"
 
-choice ESP_SMARTCONFIG_TYPE
-	prompt "Smartconfig Type"
-	default ESP_TOUCH
-	help
-		Set protocol type of SmartConfig.
+    choice MENJIN_WIFI_CONFIG_TYPE
+        prompt "Wifi Config Type"
+        default MENJIN_WIFI_CONFIG_CAPTIVE_PORTAL
+        help
+            Set protocol type of Wifi Config.
 
-		Start SmartConfig method according to the selected type when user select "ESPTouch", "AirKiss",  "ESPTouch and AirKiss" or "ESPTouch V2" type.
+            Start Wifi Config method according to the selected type when user select "SmartConfig" or "Captive Portal" type.
 
-config ESP_TOUCH
-	bool "ESPTouch"
-config AIRKISS
-	bool "AirKiss"
-config ESP_TOUCH_AIRKISS
-	bool "ESPTouch and AirKiss"
-config ESP_TOUCH_V2
-	bool "ESPTouch-V2"
-endchoice
+    config MENJIN_WIFI_CONFIG_CAPTIVE_PORTAL
+        bool "Captive Portal"
 
-config ESP_SMARTCONFIG_TYPE
-	int
-	default 0 if ESP_TOUCH
-	default 1 if AIRKISS
-	default 2 if ESP_TOUCH_AIRKISS
-	default 3 if ESP_TOUCH_V2
+    config MENJIN_WIFI_CONFIG_SMARTCONFIG
+        bool "SmartConfig"
+    endchoice
 
+    config MENJIN_WIFI_CONFIG_TYPE
+        int
+        default 0 if MENJIN_WIFI_CONFIG_CAPTIVE_PORTAL
+        default 1 if MENJIN_WIFI_CONFIG_SMARTCONFIG
+
+    choice ESP_SMARTCONFIG_TYPE
+        prompt "Smartconfig Type"
+        default ESP_TOUCH_AIRKISS
+        help
+            Set protocol type of SmartConfig.
+
+            Start SmartConfig method according to the selected type when user select "ESPTouch", "AirKiss",  "ESPTouch and AirKiss" or "ESPTouch V2" type.
+
+    config ESP_TOUCH
+        bool "ESPTouch"
+    config AIRKISS
+        bool "AirKiss"
+    config ESP_TOUCH_AIRKISS
+        bool "ESPTouch and AirKiss"
+    config ESP_TOUCH_V2
+        bool "ESPTouch-V2"
+    config ESP_TOUCH
+        bool "ESPTouch"
+    endchoice
+
+    config ESP_SMARTCONFIG_TYPE
+        int
+        default 0 if ESP_TOUCH
+        default 1 if AIRKISS
+        default 2 if ESP_TOUCH_AIRKISS
+        default 3 if ESP_TOUCH_V2
+
+    config MENJIN_WIFI_SSID
+        string "Wifi AP SSID"
+        default "ESP_MENJIN"
+        help
+            Captive Portal Wifi AP SSID.
+
+endmenu
+
+
+menu "Board Support Package"
+
+    config BSP_ERROR_CHECK
+        bool "Enable error check in BSP"
+        default y
+        help
+            Error check assert the application before returning the error code.
+
+
+    menu "SPIFFS - Virtual File System"
+        config BSP_SPIFFS_FORMAT_ON_MOUNT_FAIL
+            bool "Format SPIFFS if mounting fails"
+            default n
+            help
+                Format SPIFFS if it fails to mount the filesystem.
+
+        config BSP_SPIFFS_MOUNT_POINT
+            string "SPIFFS mount point"
+            default "/spiffs"
+            help
+                Mount point of SPIFFS in the Virtual File System.
+
+        config BSP_SPIFFS_PARTITION_LABEL
+            string "Partition label of SPIFFS"
+            default "storage"
+            help
+                Partition label which stores SPIFFS.
+
+        config BSP_SPIFFS_MAX_FILES
+            int "Max files supported for SPIFFS VFS"
+            default 5
+            help
+                Supported max files for SPIFFS in the Virtual File System.
+    endmenu
 
 endmenu

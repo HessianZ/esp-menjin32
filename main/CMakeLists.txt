@@ -3,17 +3,17 @@
 idf_component_register(
         SRC_DIRS
         "."
-        "driver"
         "app"
         "system"
-        "http"
+        "wifi"
 
         INCLUDE_DIRS
         "."
-        "driver"
         "app"
         "system"
-        "http"
+        "wifi"
 
         EMBED_TXTFILES server_root_cert.pem
 )
+
+spiffs_create_partition_image(storage ../spiffs FLASH_IN_PROJECT)
